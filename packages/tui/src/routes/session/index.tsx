@@ -911,7 +911,10 @@ export function Session(props: {
         sessionID: route.sessionID,
         metadata: SessionContextTree.set(current.metadata, SessionContextTree.armRoot(tree)),
       })
-      .then(() => toast.show({ message: "Next prompt starts a new root", variant: "success", duration: 4000 }))
+      .then(async () => {
+        await data.session.sync(route.sessionID)
+        toast.show({ message: "Next prompt starts a new root", variant: "success", duration: 4000 })
+      })
       .catch((error) => toast.show({ message: errorMessage(error), variant: "error" }))
   }
 
@@ -1100,12 +1103,7 @@ export function Session(props: {
         }
         const mode = argument === "link" ? "link" : "switch"
         dialog.replace(() => (
-          <DialogContextTree
-            sessionID={route.sessionID}
-            mode={mode}
-            onSwitch={toBottom}
-            onNewRoot={armNewRoot}
-          />
+          <DialogContextTree sessionID={route.sessionID} mode={mode} onSwitch={toBottom} />
         ))
       },
     },

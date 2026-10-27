@@ -13,7 +13,6 @@ export function DialogContextTree(props: {
   sessionID: string
   mode: "switch" | "link"
   onSwitch?: () => void
-  onNewRoot?: () => void
 }) {
   const data = useData()
   const client = useClient()
@@ -37,18 +36,26 @@ export function DialogContextTree(props: {
     if (next) setTree(next)
   })
 
-  const update = async (next: SessionContextTree.Info) => {
-    const current = session()
-    if (!current) return
-    try {
-      await client.api.session.update({
-        sessionID: props.sessionID,
-        metadata: SessionContextTree.set(current.metadata, next),
-      })
-      setTree(next)
-    } catch (error) {
-      toast.show({ message: errorMessage(error), variant: "error", duration: 5000 })
-    }
+  let pending = Promise.resolve()
+  const update = (change: (tree: SessionContextTree.Info) => SessionContextTree.Info) => {
+    pending = pending.then(async () => {
+      const current = data.session.get(props.sessionID)
+      const base = SessionContextTree.get(current?.metadata) ?? tree()
+      if (!current || !base) return
+      const next = change(base)
+      try {
+        await client.api.session.update({
+          sessionID: props.sessionID,
+          metadata: SessionContextTree.set(current.metadata, next),
+        })
+        setTree(next)
+        await data.session.sync(props.sessionID)
+        setTree(SessionContextTree.get(data.session.get(props.sessionID)?.metadata) ?? next)
+      } catch (error) {
+        toast.show({ message: errorMessage(error), variant: "error", duration: 5000 })
+      }
+    })
+    return pending
   }
 
   onMount(() => {
@@ -60,7 +67,7 @@ export function DialogContextTree(props: {
       dialog.clear()
       return
     }
-    void update(initialized)
+    void update((current) => current)
   })
 
   const options = createMemo((): DialogSelectOption<string>[] => {
@@ -76,8 +83,10 @@ export function DialogContextTree(props: {
               value: NEW_ROOT,
               footer: "next prompt",
               onSelect: () => {
-                props.onNewRoot?.()
-                dialog.clear()
+                void update((current) => SessionContextTree.armRoot(current)).then(() => {
+                  dialog.clear()
+                  toast.show({ message: "Next prompt starts a new root", variant: "success", duration: 4000 })
+                })
               },
             },
           ]
@@ -91,10 +100,14 @@ export function DialogContextTree(props: {
         onSelect: () => {
           if (props.mode === "link") {
             if (!active || id === active) return
-            void update(links.includes(id) ? SessionContextTree.unlink(current, id) : SessionContextTree.link(current, id))
+            void update((tree) =>
+              tree.nodes[tree.active ?? ""]?.links?.includes(id)
+                ? SessionContextTree.unlink(tree, id)
+                : SessionContextTree.link(tree, id),
+            )
             return
           }
-          void update(SessionContextTree.switchTo(current, id)).then(() => {
+          void update((tree) => SessionContextTree.switchTo(tree, id)).then(() => {
             dialog.clear()
             props.onSwitch?.()
             toast.show({ message: `Context switched to ${node.label}`, variant: "success", duration: 3000 })
