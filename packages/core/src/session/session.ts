@@ -8,6 +8,7 @@ import { Event } from "@opencode/schema/event"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Bus } from "../bus.js"
 import { Database } from "../database/database.js"
+import { KeyedMutex } from "../effect/keyed-mutex.js"
 import { Instance } from "../instance/service.js"
 import { ShellResult } from "../shell/result.js"
 import type { Skill } from "../skill.js"
@@ -19,6 +20,7 @@ import {
   PromptConflictError,
   SyntheticConflictError,
 } from "./error.js"
+import { SessionContextTree } from "./context-tree.js"
 import { SessionEvent } from "./event.js"
 import { SessionExecution } from "./execution.js"
 import { SessionInbox } from "./inbox.js"
@@ -48,11 +50,33 @@ export const make = Effect.fn("Session.make")(function* () {
   const admission = yield* SessionInbox.Service
   const fs = yield* FSUtil.Service
   const scope = yield* Scope.Scope
+  const contextTreeLocks = KeyedMutex.makeUnsafe<SessionSchema.ID>()
 
   const get = Effect.fn("Session.get")(function* (sessionID: SessionSchema.ID) {
     const session = yield* store.get(sessionID)
     if (!session) return yield* new NotFoundError({ sessionID })
     return session
+  })
+  const recordContextTree = Effect.fn("Session.recordContextTree")(function* (
+    sessionID: SessionSchema.ID,
+    messageID: SessionMessage.ID,
+    text: string,
+  ) {
+    yield* contextTreeLocks
+      .withLock(sessionID)(
+        Effect.gen(function* () {
+          const session = yield* get(sessionID)
+          const tree = SessionContextTree.get(session.metadata)
+          if (!tree) return
+          const next = SessionContextTree.add(tree, messageID, text)
+          if (next === tree) return
+          yield* bus.publish(SessionEvent.MetadataUpdated, {
+            sessionID,
+            metadata: SessionContextTree.set(session.metadata, next),
+          })
+        }),
+      )
+      .pipe(Effect.catchCause((cause) => Effect.logWarning("failed to record context tree node", { sessionID, cause })))
   })
   const message = Effect.fn("Session.message")(function* (sessionID: SessionSchema.ID, messageID: SessionMessage.ID) {
     const stored = yield* store.message(messageID)
@@ -184,6 +208,7 @@ export const make = Effect.fn("Session.make")(function* () {
         }).pipe(
           Effect.catchTag("SessionInbox.LifecycleConflict", () => new PromptConflictError({ sessionID, messageID })),
         )
+        yield* recordContextTree(sessionID, messageID, input.text)
         if (input.resume !== false) yield* execution.wake(sessionID)
         return admitted
       }),
@@ -263,6 +288,12 @@ export const make = Effect.fn("Session.make")(function* () {
     const session = yield* get(sessionID)
     if (session.revert) yield* SessionRevert.commit(bus, session)
     const inputID = input.id ?? SessionMessage.ID.create()
+    if (SessionContextTree.get(session.metadata))
+      return yield* new CompactionConflictError({
+        sessionID,
+        inputID,
+        reason: "Compaction is unavailable while the context tree is active",
+      })
     const admitted = yield* admission
       .admitCompaction({
         id: inputID,

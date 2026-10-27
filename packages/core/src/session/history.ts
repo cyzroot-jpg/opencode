@@ -10,6 +10,7 @@ import type { SessionSchema } from "./schema.js"
 import { Instructions } from "../instructions/index.js"
 import { InstructionState } from "./instruction-state.js"
 import { SessionBlob } from "./blob.js"
+import { SessionContextTree } from "./context-tree.js"
 import { SessionRecentText } from "./recent-text.js"
 import { SessionMessageTable } from "./sql.js"
 import { SessionStored } from "./stored.js"
@@ -242,6 +243,36 @@ export const entriesForRunner = Effect.fn("SessionHistory.entriesForRunner")(fun
         return {
           initial: yield* InstructionState.initial(db, sessionID, instructions),
           entries: messages,
+        }
+      }),
+    )
+    .pipe(Effect.orDie)
+})
+
+export const entriesForTree = Effect.fn("SessionHistory.entriesForTree")(function* (
+  db: DatabaseService,
+  sessionID: SessionSchema.ID,
+  instructions: Instructions.List,
+  tree: SessionContextTree.Info,
+) {
+  return yield* db
+    .transaction(() =>
+      Effect.gen(function* () {
+        const rows = yield* db
+          .select()
+          .from(SessionMessageTable)
+          .where(eq(SessionMessageTable.session_id, sessionID))
+          .orderBy(asc(SessionMessageTable.seq))
+          .all()
+          .pipe(Effect.orDie)
+        const decoded = yield* Effect.forEach(
+          yield* SessionBlob.hydrate(db, rows),
+          (row) => decodeMessageRow(row).pipe(Effect.map((message) => ({ seq: row.seq, message }))),
+          { concurrency: 1 },
+        )
+        return {
+          initial: yield* InstructionState.initial(db, sessionID, instructions),
+          entries: SessionContextTree.filter(tree, decoded),
         }
       }),
     )

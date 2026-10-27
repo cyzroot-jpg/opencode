@@ -15,6 +15,7 @@ import {
 import path from "node:path"
 import { EOL, tmpdir } from "node:os"
 import { mkdir, writeFile } from "node:fs/promises"
+import { SessionContextTree } from "@opencode/core/session/context-tree"
 import { useRoute, useRouteData } from "../../context/route"
 import { createStore } from "solid-js/store"
 import { useData } from "../../context/data"
@@ -68,6 +69,7 @@ import { TodoItem } from "../../component/todo-item"
 import { DialogImagePreview } from "../../component/dialog-image-preview"
 import { statusLabel } from "../../component/dialog-workspace-file-changes"
 import { DialogMessage } from "./dialog-message"
+import { DialogContextTree } from "./dialog-context-tree"
 import { DialogFork } from "./dialog-fork"
 import { DialogTimeline } from "./dialog-timeline"
 import { DialogGoUpsell } from "../../component/dialog-go-upsell"
@@ -1060,6 +1062,16 @@ export function Session(props: {
       },
     },
     {
+      title: "Context tree",
+      id: "session.tree",
+      group: "Session",
+      slash: { name: "tree", arguments: true as const },
+      run: (input?: string) => {
+        const mode = input?.trim().toLowerCase() === "link" ? "link" : "switch"
+        dialog.replace(() => <DialogContextTree sessionID={route.sessionID} mode={mode} />)
+      },
+    },
+    {
       title: "Fork session",
       id: "session.fork",
       group: "Session",
@@ -1084,6 +1096,13 @@ export function Session(props: {
         name: "compact",
       },
       run: () => {
+        if (SessionContextTree.get(data.session.get(route.sessionID)?.metadata)) {
+          toast.show({
+            message: "Compaction is unavailable while the context tree is active",
+            variant: "error",
+          })
+          return
+        }
         const selection = local.model.current()
         void data.session
           .compact({

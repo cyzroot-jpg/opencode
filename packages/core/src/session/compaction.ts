@@ -29,6 +29,7 @@ import { Token } from "../util/token.js"
 import type { SessionContext } from "./context.js"
 import { SessionEvent } from "./event.js"
 import { SessionHistory } from "./history.js"
+import { SessionContextTree } from "./context-tree.js"
 import type { SessionMessage } from "./message.js"
 import { SessionModelRequest } from "./model-request.js"
 import { SessionRunnerModel } from "./runner/model.js"
@@ -290,6 +291,7 @@ export const layer = Layer.effect(
     const compact = Effect.fn("SessionCompaction.compact")(function* (trigger: Trigger): Effect.fn.Return<Outcome> {
       const settings = state.get()
       const context = trigger.context
+      if (SessionContextTree.get(context.session.metadata)) return { status: "skipped" }
 
       // Only the user compacts when automatic compaction is off, overflow included.
       if (trigger.reason !== "manual" && !settings.auto) return { status: "skipped" }
@@ -341,6 +343,7 @@ export const layer = Layer.effect(
       const settings = state.get()
       if (!settings.precompute || !settings.auto) return
       const context = yield* load
+      if (SessionContextTree.get(context.session.metadata)) return
       if (context.model.compaction?.type === "native") return
       const ceiling = calculateCeiling(context.model.limit, settings.buffer)
       if (!Number.isFinite(ceiling)) return

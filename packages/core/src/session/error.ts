@@ -82,8 +82,13 @@ export class CompactionConflictError extends Schema.TaggedError<CompactionConfli
   {
     sessionID: SessionSchema.ID,
     inputID: SessionMessage.ID,
+    reason: Schema.optional(Schema.String),
   },
-) {}
+) {
+  override get message() {
+    return this.reason ?? "Compaction input ID conflicts with an existing durable record"
+  }
+}
 
 export class BusyError extends Schema.TaggedError<BusyError>()("Session.BusyError", {
   sessionID: SessionSchema.ID,

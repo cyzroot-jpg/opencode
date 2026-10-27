@@ -13,6 +13,7 @@ import { SessionMessageUpdater } from "./message-updater.js"
 import { SessionInbox } from "./inbox.js"
 import { InstructionState } from "./instruction-state.js"
 import { SessionBlob } from "./blob.js"
+import { SessionContextTree } from "./context-tree.js"
 import { SessionInboxTable, SessionMessageTable, SessionTable } from "./sql.js"
 import { SessionStored } from "./stored.js"
 import { InstructionEntry } from "./instruction-entry.js"
@@ -165,7 +166,7 @@ const projectFork = Effect.fn("SessionProjector.projectFork")(function* (
       title: forkTitle(parent.title ?? undefined),
       agent: parent.agent,
       model: parent.model,
-      metadata: parent.metadata,
+      metadata: SessionContextTree.detach(parent.metadata),
       permission: parent.permission,
       version: parent.version,
       cost: 0,
@@ -815,6 +816,12 @@ const layer = Layer.effectDiscard(
           .get()
           .pipe(Effect.orDie)
         if (!boundary) return yield* Effect.die(new Error(`Revert boundary message not found: ${event.data.to}`))
+        const session = yield* db
+          .select({ metadata: SessionTable.metadata })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .get()
+          .pipe(Effect.orDie)
         yield* db
           .delete(SessionMessageTable)
           .where(
@@ -834,7 +841,11 @@ const layer = Layer.effectDiscard(
           .pipe(Effect.orDie)
         yield* db
           .update(SessionTable)
-          .set({ revert: null, time_updated: event.created })
+          .set({
+            revert: null,
+            metadata: SessionContextTree.detach(session?.metadata) ?? null,
+            time_updated: event.created,
+          })
           .where(eq(SessionTable.id, event.data.sessionID))
           .run()
           .pipe(Effect.orDie)

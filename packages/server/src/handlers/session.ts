@@ -425,7 +425,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 Effect.catchTag("Session.CompactionConflictError", (error) =>
                   Effect.fail(
                     new ConflictError({
-                      message: `Compaction input ID conflicts with an existing durable record: ${error.inputID}`,
+                      message: error.reason ?? `Compaction input ID conflicts with an existing durable record: ${error.inputID}`,
                       resource: error.inputID,
                     }),
                   ),

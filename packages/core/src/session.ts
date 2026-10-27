@@ -17,6 +17,7 @@ import { Database } from "./database/database.js"
 import { SessionProjector } from "./session/projector.js"
 import { SessionMessageTable } from "./session/sql.js"
 import { SessionBlob } from "./session/blob.js"
+import { SessionContextTree } from "./session/context-tree.js"
 import { SessionSchema } from "./session/schema.js"
 import { RelativePath } from "./schema.js"
 import { Agent } from "@opencode/schema/agent"
@@ -319,7 +320,9 @@ const layer = Layer.effect(
               agent: input.agent,
               // Children inherit metadata and permissions the way they inherit
               // location, so host policies that read them treat the family uniformly.
-              metadata: input.metadata ?? parent?.metadata,
+              metadata: input.parentID
+                ? (SessionContextTree.detach(input.metadata ?? parent?.metadata) ?? undefined)
+                : (input.metadata ?? parent?.metadata),
               permissions: input.permissions ?? parent?.permissions,
               model: input.model,
             },
