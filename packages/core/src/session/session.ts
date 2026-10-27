@@ -68,7 +68,9 @@ export const make = Effect.fn("Session.make")(function* () {
           const session = yield* get(sessionID)
           const tree = SessionContextTree.get(session.metadata)
           if (!tree) return
-          const next = SessionContextTree.add(tree, messageID, text)
+          const next = tree.pendingRoot
+            ? SessionContextTree.addRoot(tree, messageID, text)
+            : SessionContextTree.add(tree, messageID, text)
           if (next === tree) return
           yield* bus.publish(SessionEvent.MetadataUpdated, {
             sessionID,

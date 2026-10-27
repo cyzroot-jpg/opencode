@@ -17,6 +17,7 @@ export const Info = Schema.Struct({
   version: Schema.Literal(1),
   root: Schema.optional(Schema.String),
   active: Schema.optional(Schema.String),
+  pendingRoot: Schema.optional(Schema.Boolean),
   nodes: Schema.Record(Schema.String, Node),
 })
 export type Info = typeof Info.Type
@@ -76,6 +77,7 @@ export const add = (tree: Info, id: string, text: string) => {
     ...tree,
     root: tree.root ?? id,
     active: id,
+    pendingRoot: false,
     nodes: {
       ...tree.nodes,
       [id]: {
@@ -87,12 +89,25 @@ export const add = (tree: Info, id: string, text: string) => {
   }
 }
 
-export const switchTo = (tree: Info, id: string) => (tree.nodes[id] ? { ...tree, active: id } : tree)
+export const addRoot = (tree: Info, id: string, text: string) => {
+  if (tree.nodes[id]) return tree
+  return {
+    ...tree,
+    root: tree.root ?? id,
+    active: id,
+    pendingRoot: false,
+    nodes: { ...tree.nodes, [id]: { label: label(text) } },
+  }
+}
+
+export const armRoot = (tree: Info) => ({ ...tree, pendingRoot: true })
+
+export const switchTo = (tree: Info, id: string) =>
+  tree.nodes[id] ? { ...tree, active: id, pendingRoot: false } : tree
 
 export const link = (tree: Info, id: string) => {
   const active = tree.active
   if (!active || !tree.nodes[active] || !tree.nodes[id] || id === active) return tree
-  if (path(tree, active).includes(id)) return tree
   const current = tree.nodes[active]
   if (current.links?.includes(id)) return tree
   return {

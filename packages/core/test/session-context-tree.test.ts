@@ -57,6 +57,27 @@ describe("SessionContextTree", () => {
     expect(SessionContextTree.switchTo(tree, "missing")).toBe(tree)
   })
 
+  test("creates additional roots and arms the next prompt", () => {
+    const base = SessionContextTree.initialize([{ id: "u1", text: "first" }])!
+    const armed = SessionContextTree.armRoot(base)
+    expect(armed.pendingRoot).toBe(true)
+    const tree = SessionContextTree.addRoot(armed, "u4", "new root")
+    expect(tree).toMatchObject({
+      root: "u1",
+      active: "u4",
+      pendingRoot: false,
+      nodes: { u1: { label: "first" }, u4: { label: "new root" } },
+    })
+    expect(SessionContextTree.order(tree).map((item) => item.id)).toEqual(["u1", "u4"])
+    const messages = [
+      { id: "u1", type: "user" },
+      { id: "a1", type: "assistant" },
+      { id: "u4", type: "user" },
+      { id: "a4", type: "assistant" },
+    ]
+    expect(SessionContextTree.visible(tree, messages).map((message) => message.id)).toEqual(["u4", "a4"])
+  })
+
   test("links and unlinks another node", () => {
     const tree = {
       ...SessionContextTree.initialize([{ id: "u1", text: "first" }])!,
@@ -72,7 +93,7 @@ describe("SessionContextTree", () => {
       label: "second",
       links: ["u3"],
     })
-    expect(SessionContextTree.link(tree, "u1")).toBe(tree)
+    expect(SessionContextTree.link(tree, "u1").nodes.u2?.links).toEqual(["u1"])
     expect(SessionContextTree.link(tree, "u2")).toBe(tree)
     const linked = SessionContextTree.link(tree, "u3")
     expect(SessionContextTree.unlink(linked, "u3").nodes.u2).toEqual({ parent: "u1", label: "second" })
@@ -125,6 +146,25 @@ describe("SessionContextTree", () => {
     expect(
       SessionContextTree.visible({ ...tree, active: "u1" }, messages).map((message) => message.id),
     ).toEqual(["u1", "a1"])
+  })
+
+  test("links another root into the active context", () => {
+    const tree = {
+      version: 1 as const,
+      root: "u1",
+      active: "u4",
+      nodes: {
+        u1: { label: "first" },
+        u4: { label: "fourth", links: ["u1"] },
+      },
+    }
+    const roots = [turn(0, "u1"), turn(1, "a1", "assistant"), turn(2, "u4"), turn(3, "a4", "assistant")]
+    expect(SessionContextTree.filter(tree, roots).map((entry) => entry.message.id)).toEqual([
+      "u4",
+      "a4",
+      "u1",
+      "a1",
+    ])
   })
 
   test("appends a linked sibling branch", () => {

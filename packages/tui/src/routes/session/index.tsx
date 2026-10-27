@@ -894,6 +894,27 @@ export function Session(props: {
     }, 50)
   }
 
+  function armNewRoot() {
+    const current = session()
+    if (!current) return
+    const tree =
+      SessionContextTree.get(current.metadata) ??
+      SessionContextTree.initialize(
+        data.session.message
+          .list(route.sessionID)
+          .filter((message) => message.type === "user")
+          .map((message) => ({ id: message.id, text: message.text })),
+      ) ??
+      { version: 1 as const, nodes: {} }
+    void client.api.session
+      .update({
+        sessionID: route.sessionID,
+        metadata: SessionContextTree.set(current.metadata, SessionContextTree.armRoot(tree)),
+      })
+      .then(() => toast.show({ message: "Next prompt starts a new root", variant: "success", duration: 4000 }))
+      .catch((error) => toast.show({ message: errorMessage(error), variant: "error" }))
+  }
+
   function moveTranscript(delta: number) {
     clearMessageNavigation()
     if (delta < 0 && revealOlderRows(delta)) {
@@ -1072,9 +1093,19 @@ export function Session(props: {
       group: "Session",
       slash: { name: "tree", arguments: true as const },
       run: (input?: string) => {
-        const mode = input?.trim().toLowerCase() === "link" ? "link" : "switch"
+        const argument = input?.trim().toLowerCase()
+        if (argument === "new" || argument === "root") {
+          armNewRoot()
+          return
+        }
+        const mode = argument === "link" ? "link" : "switch"
         dialog.replace(() => (
-          <DialogContextTree sessionID={route.sessionID} mode={mode} onSwitch={toBottom} />
+          <DialogContextTree
+            sessionID={route.sessionID}
+            mode={mode}
+            onSwitch={toBottom}
+            onNewRoot={armNewRoot}
+          />
         ))
       },
     },

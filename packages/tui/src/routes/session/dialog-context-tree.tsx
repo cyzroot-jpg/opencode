@@ -7,7 +7,14 @@ import { useDialog } from "../../ui/dialog"
 import { useToast } from "../../ui/toast"
 import { errorMessage } from "../../util/error"
 
-export function DialogContextTree(props: { sessionID: string; mode: "switch" | "link"; onSwitch?: () => void }) {
+const NEW_ROOT = "__opencode_new_root__"
+
+export function DialogContextTree(props: {
+  sessionID: string
+  mode: "switch" | "link"
+  onSwitch?: () => void
+  onNewRoot?: () => void
+}) {
   const data = useData()
   const client = useClient()
   const dialog = useDialog()
@@ -61,23 +68,40 @@ export function DialogContextTree(props: { sessionID: string; mode: "switch" | "
     if (!current) return []
     const active = current.active
     const links = active ? (current.nodes[active]?.links ?? []) : []
-    return SessionContextTree.order(current).map(({ id, node, depth }) => ({
-      title: `${"  ".repeat(depth)}${node.label}`,
-      value: id,
-      footer: id === active ? "active" : links.includes(id) ? "linked" : undefined,
-      onSelect: () => {
-        if (props.mode === "link") {
-          if (!active || id === active) return
-          void update(links.includes(id) ? SessionContextTree.unlink(current, id) : SessionContextTree.link(current, id))
-          return
-        }
-        void update(SessionContextTree.switchTo(current, id)).then(() => {
-          dialog.clear()
-          props.onSwitch?.()
-          toast.show({ message: `Context switched to ${node.label}`, variant: "success", duration: 3000 })
-        })
-      },
-    }))
+    const newRoot: DialogSelectOption<string>[] =
+      props.mode === "switch"
+        ? [
+            {
+              title: "＋ New root",
+              value: NEW_ROOT,
+              footer: "next prompt",
+              onSelect: () => {
+                props.onNewRoot?.()
+                dialog.clear()
+              },
+            },
+          ]
+        : []
+    return [
+      ...newRoot,
+      ...SessionContextTree.order(current).map(({ id, node, depth }) => ({
+        title: `${"  ".repeat(depth)}${node.label}`,
+        value: id,
+        footer: id === active ? "active" : links.includes(id) ? "linked" : undefined,
+        onSelect: () => {
+          if (props.mode === "link") {
+            if (!active || id === active) return
+            void update(links.includes(id) ? SessionContextTree.unlink(current, id) : SessionContextTree.link(current, id))
+            return
+          }
+          void update(SessionContextTree.switchTo(current, id)).then(() => {
+            dialog.clear()
+            props.onSwitch?.()
+            toast.show({ message: `Context switched to ${node.label}`, variant: "success", duration: 3000 })
+          })
+        },
+      })),
+    ]
   })
 
   return (
