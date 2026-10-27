@@ -3667,3 +3667,85 @@ test("a retry under the same client-minted ID cannot duplicate rows", async () =
     app.renderer.destroy()
   }
 })
+
+test("filters rows when session metadata selects a context tree node", async () => {
+  const events = createEventStream()
+  const sessionID = "session-context-tree"
+  const calls = createFetch((url) => {
+    if (url.pathname === `/api/session/${sessionID}/message`)
+      return json({
+        data: [
+          { id: "user-1", type: "user", text: "First", time: { created: 1 } },
+          { id: "user-2", type: "user", text: "Second", time: { created: 2 } },
+          { id: "user-3", type: "user", text: "Third", time: { created: 3 } },
+        ],
+        cursor: {},
+      })
+    if (url.pathname !== `/api/session/${sessionID}`) return
+    return json({
+      data: {
+        id: sessionID,
+        projectID: "proj_test",
+        cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        time: { created: 0, updated: 0 },
+        title: "Context tree",
+        location: { directory },
+      },
+    })
+  }, events)
+  let data!: ReturnType<typeof useData>
+  let rows!: ReturnType<typeof createSessionRows>
+
+  function Probe() {
+    data = useData()
+    rows = createSessionRows(() => sessionID)
+    return <box />
+  }
+
+  const app = await testRender(() => (
+    <TestTuiContexts>
+      <ClientProvider api={createApi(calls.fetch)}>
+        <ProjectProvider>
+          <DataProvider>
+            <Probe />
+          </DataProvider>
+        </ProjectProvider>
+      </ClientProvider>
+    </TestTuiContexts>
+  ))
+
+  const messageIDs = () => rows.flatMap((row) => (row.type === "message" ? [row.messageID] : []))
+  const metadata = (active: string): OpenCodeEvent => ({
+    id: "evt_context_tree",
+    created: 4,
+    type: "session.metadata.updated",
+    durable: durable(sessionID, 1),
+    data: {
+      sessionID,
+      metadata: {
+        contextTree: {
+          version: 1,
+          root: "user-1",
+          active,
+          nodes: {
+            "user-1": { label: "First" },
+            "user-2": { parent: "user-1", label: "Second" },
+            "user-3": { parent: "user-1", label: "Third" },
+          },
+        },
+      },
+    },
+  })
+
+  try {
+    await data.session.sync(sessionID)
+    await wait(() => data.session.message.list(sessionID).length === 3)
+    emitEvent(events, metadata("user-1"))
+    await wait(() => messageIDs().join(",") === "user-1")
+    emitEvent(events, metadata("user-2"))
+    await wait(() => messageIDs().join(",") === "user-1,user-2")
+  } finally {
+    app.renderer.destroy()
+  }
+})
