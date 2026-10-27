@@ -249,6 +249,45 @@ export const entriesForRunner = Effect.fn("SessionHistory.entriesForRunner")(fun
     .pipe(Effect.orDie)
 })
 
+const contextNode = (message: SessionMessage.Info) => {
+  if (message.type !== "compaction" || message.status !== "completed") return
+  const tree = message.metadata?.contextTree
+  if (!tree || typeof tree !== "object" || Array.isArray(tree)) return
+  const nodeID = "nodeID" in tree ? tree.nodeID : undefined
+  return typeof nodeID === "string" ? nodeID : undefined
+}
+
+export const treeEntries = <T extends { readonly seq: number; readonly message: SessionMessage.Info }>(
+  tree: SessionContextTree.Info,
+  entries: readonly T[],
+) => {
+  const allowed = SessionContextTree.filter(tree, entries, { includeCompaction: true })
+  const activePath = SessionContextTree.path(tree, tree.active)
+  let selected: T | undefined
+  for (const nodeID of activePath.toReversed()) {
+    selected = allowed.filter((entry) => contextNode(entry.message) === nodeID).at(-1)
+    if (selected) break
+  }
+  if (!selected || selected.message.type !== "compaction") return allowed.filter((entry) => entry.message.type !== "compaction")
+  const keepID = selected.message.metadata?.keepID
+  const keepSeq = typeof keepID === "string" ? allowed.find((entry) => entry.message.id === keepID)?.seq : undefined
+  const recent = allowed
+    .filter((entry) => keepSeq !== undefined && entry.seq >= keepSeq && entry.seq < selected.seq)
+    .map((entry) => SessionRecentText.messageToText(entry.message))
+    .filter(Boolean)
+    .join("\n\n")
+  return [
+    {
+      ...selected,
+      message: {
+        ...selected.message,
+        metadata: { ...selected.message.metadata, ...(recent ? { recent } : {}) },
+      },
+    },
+    ...allowed.filter((entry) => entry.seq > selected.seq && entry.message.type !== "compaction"),
+  ]
+}
+
 export const entriesForTree = Effect.fn("SessionHistory.entriesForTree")(function* (
   db: DatabaseService,
   sessionID: SessionSchema.ID,
@@ -272,7 +311,7 @@ export const entriesForTree = Effect.fn("SessionHistory.entriesForTree")(functio
         )
         return {
           initial: yield* InstructionState.initial(db, sessionID, instructions),
-          entries: SessionContextTree.filter(tree, decoded),
+          entries: treeEntries(tree, decoded),
         }
       }),
     )

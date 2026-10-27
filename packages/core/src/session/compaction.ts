@@ -291,7 +291,8 @@ export const layer = Layer.effect(
     const compact = Effect.fn("SessionCompaction.compact")(function* (trigger: Trigger): Effect.fn.Return<Outcome> {
       const settings = state.get()
       const context = trigger.context
-      if (SessionContextTree.get(context.session.metadata)) return { status: "skipped" }
+      const tree = SessionContextTree.get(context.session.metadata)
+      if (tree) return yield* compactTree(trigger, tree)
 
       // Only the user compacts when automatic compaction is off, overflow included.
       if (trigger.reason !== "manual" && !settings.auto) return { status: "skipped" }
@@ -526,6 +527,36 @@ export const layer = Layer.effect(
       if (!keepID) return result
       // A compaction hook may choose its own kept range.
       return { ...result, metadata: { keepID, ...result.metadata } }
+    })
+
+    const compactTree = Effect.fnUntraced(function* (trigger: Trigger, tree: SessionContextTree.Info) {
+      const settings = state.get()
+      const context = trigger.context
+      const nodeID = tree.active
+      if (!nodeID || !tree.nodes[nodeID]) return { status: "skipped" as const }
+      if (trigger.reason !== "manual" && !settings.auto) return { status: "skipped" as const }
+      if (
+        trigger.reason === "auto" &&
+        !due(context, calculateCeiling(context.model.limit, settings.buffer), trigger.estimate)
+      )
+        return { status: "skipped" as const }
+
+      const model = yield* selectModel(context, settings.buffer, false)
+      const budget =
+        trigger.reason === "overflow"
+          ? Math.min(model.cap, Math.floor(total(trigger.estimate ?? estimatePrompt(context)) * SHRINK_STEPS[0]))
+          : model.cap
+      const selected = model.context === context ? trigger : { ...trigger, context: model.context }
+      if (trigger.reason !== "manual")
+        yield* bus.publish(SessionEvent.Compaction.Started, { sessionID: context.session.id, reason: "auto" })
+
+      return yield* summarize(selected, budget, settings.keep).pipe(
+        Effect.matchEffect({
+          onSuccess: (result) =>
+            publish(selected, { ...result, metadata: { ...result.metadata, contextTree: { nodeID } } }),
+          onFailure: (failure) => publish(selected, failure),
+        }),
+      )
     })
 
     /**

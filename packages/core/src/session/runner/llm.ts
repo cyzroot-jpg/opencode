@@ -9,6 +9,7 @@ import { LocationLifecycle } from "../../location-lifecycle.js"
 import { InstructionState } from "../instruction-state.js"
 import { SessionCompaction } from "../compaction.js"
 import { SessionContext } from "../context.js"
+import { SessionContextTree } from "../context-tree.js"
 import { SessionEvent } from "../event.js"
 import { SessionInbox } from "../inbox.js"
 import { SessionHistory } from "../history.js"
@@ -118,18 +119,22 @@ const layer = Layer.effect(
                     const selected = yield* context.select(sessionID)
                     const model = yield* context.resolveModel(selected.session)
                     // Preview updates without admitting them after the already-delivered compaction marker.
-                    const history = yield* SessionHistory.preview(db, sessionID, selected.instructions, model.ref)
+                    const loaded = SessionContextTree.get(selected.session.metadata)
+                      ? yield* context.load(selected)
+                      : yield* SessionHistory.preview(db, sessionID, selected.instructions, model.ref).pipe(
+                          Effect.map((history) => ({
+                            session: selected.session,
+                            agent: selected.agent,
+                            tools: selected.tools,
+                            model,
+                            initial: history.initial,
+                            messages: history.messages,
+                          })),
+                        )
                     return yield* compaction.compact({
                       reason: "manual",
                       inputID: pending.id,
-                      context: {
-                        session: selected.session,
-                        agent: selected.agent,
-                        tools: selected.tools,
-                        model,
-                        initial: history.initial,
-                        messages: history.messages,
-                      },
+                      context: loaded,
                     })
                   }).pipe(
                     Effect.catch((error) =>

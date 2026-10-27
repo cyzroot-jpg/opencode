@@ -1103,7 +1103,13 @@ export function Session(props: {
           return
         }
         const mode =
-          argument === "link" ? "link" : argument === "delete" || argument === "remove" ? "delete" : "switch"
+          argument === "link"
+            ? "link"
+            : argument === "delete" || argument === "remove"
+              ? "delete"
+              : argument === "compact"
+                ? "compact"
+                : "switch"
         dialog.replace(() => (
           <DialogContextTree sessionID={route.sessionID} mode={mode} onSwitch={toBottom} />
         ))
@@ -1134,13 +1140,6 @@ export function Session(props: {
         name: "compact",
       },
       run: () => {
-        if (SessionContextTree.get(data.session.get(route.sessionID)?.metadata)) {
-          toast.show({
-            message: "Compaction is unavailable while the context tree is active",
-            variant: "error",
-          })
-          return
-        }
         const selection = local.model.current()
         void data.session
           .compact({

@@ -290,12 +290,6 @@ export const make = Effect.fn("Session.make")(function* () {
     const session = yield* get(sessionID)
     if (session.revert) yield* SessionRevert.commit(bus, session)
     const inputID = input.id ?? SessionMessage.ID.create()
-    if (SessionContextTree.get(session.metadata))
-      return yield* new CompactionConflictError({
-        sessionID,
-        inputID,
-        reason: "Compaction is unavailable while the context tree is active",
-      })
     const admitted = yield* admission
       .admitCompaction({
         id: inputID,

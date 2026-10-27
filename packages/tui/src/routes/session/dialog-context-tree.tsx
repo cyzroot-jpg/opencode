@@ -12,7 +12,7 @@ const NEW_ROOT = "__opencode_new_root__"
 
 export function DialogContextTree(props: {
   sessionID: string
-  mode: "switch" | "link" | "delete"
+  mode: "switch" | "link" | "delete" | "compact"
   onSwitch?: () => void
 }) {
   const data = useData()
@@ -100,6 +100,17 @@ export function DialogContextTree(props: {
         value: id,
         footer: id === active ? "active" : links.includes(id) ? "linked" : undefined,
         onSelect: () => {
+          if (props.mode === "compact") {
+            void update((tree) => SessionContextTree.switchTo(tree, id)).then(() => {
+              dialog.clear()
+              props.onSwitch?.()
+              void data.session
+                .compact({ sessionID: props.sessionID })
+                .catch((error) => toast.show({ message: errorMessage(error), variant: "error" }))
+              toast.show({ message: `Compacting ${node.label}`, variant: "success", duration: 4000 })
+            })
+            return
+          }
           if (props.mode === "delete") {
             const next = SessionContextTree.remove(current, id)
             const remove = () =>
@@ -148,7 +159,13 @@ export function DialogContextTree(props: {
   return (
     <DialogSelect
       title={
-        props.mode === "link" ? "Link context node" : props.mode === "delete" ? "Delete context node" : "Context tree"
+        props.mode === "link"
+          ? "Link context node"
+          : props.mode === "delete"
+            ? "Delete context node"
+            : props.mode === "compact"
+              ? "Compact context node"
+              : "Context tree"
       }
       options={options()}
       current={tree()?.active}

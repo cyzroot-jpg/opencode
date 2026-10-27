@@ -239,7 +239,11 @@ export const visible = <T extends { readonly id: string; readonly type: string }
   return selected
 }
 
-export const filter = <T extends Entry>(tree: Info, entries: readonly T[]) => {
+export const filter = <T extends Entry>(
+  tree: Info,
+  entries: readonly T[],
+  options?: { readonly includeCompaction?: boolean },
+) => {
   if (Object.keys(tree.nodes).length === 0) return []
   const users = entries.filter((entry) => entry.message.type === "user").map((entry) => entry.message.id)
   const seq = new Map(entries.map((entry) => [entry.message.id, entry.seq]))
@@ -271,7 +275,7 @@ export const filter = <T extends Entry>(tree: Info, entries: readonly T[]) => {
   for (const range of ranges) {
     for (const entry of entries) {
       if (entry.seq < range.start || entry.seq >= range.end) continue
-      if (entry.message.type === "compaction" || seen.has(entry.seq)) continue
+      if ((!options?.includeCompaction && entry.message.type === "compaction") || seen.has(entry.seq)) continue
       seen.add(entry.seq)
       selected.push(entry)
     }
