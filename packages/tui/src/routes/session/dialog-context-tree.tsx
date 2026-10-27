@@ -2,6 +2,7 @@ import { SessionContextTree } from "@opencode/core/session/context-tree"
 import { createEffect, createMemo, createSignal, onMount } from "solid-js"
 import { useClient } from "../../context/client"
 import { useData } from "../../context/data"
+import { DialogConfirm } from "../../ui/dialog-confirm"
 import { DialogSelect, type DialogSelectOption } from "../../ui/dialog-select"
 import { useDialog } from "../../ui/dialog"
 import { useToast } from "../../ui/toast"
@@ -11,7 +12,7 @@ const NEW_ROOT = "__opencode_new_root__"
 
 export function DialogContextTree(props: {
   sessionID: string
-  mode: "switch" | "link"
+  mode: "switch" | "link" | "delete"
   onSwitch?: () => void
 }) {
   const data = useData()
@@ -99,6 +100,32 @@ export function DialogContextTree(props: {
         value: id,
         footer: id === active ? "active" : links.includes(id) ? "linked" : undefined,
         onSelect: () => {
+          if (props.mode === "delete") {
+            const next = SessionContextTree.remove(current, id)
+            const remove = () =>
+              update((tree) => SessionContextTree.remove(tree, id)).then(() =>
+                toast.show({
+                  message:
+                    Object.keys(next.nodes).length === 0
+                      ? "Context cleared. Next prompt starts a new session."
+                      : `Deleted ${node.label}`,
+                  variant: "success",
+                  duration: 4000,
+                }),
+              )
+            if (!node.parent || !current.nodes[node.parent]) {
+              dialog.replace(() => (
+                <DialogConfirm
+                  title="Delete root node?"
+                  message={`Delete "${node.label}" and its branches? If it is the last root, the session starts fresh.`}
+                  onConfirm={remove}
+                />
+              ))
+              return
+            }
+            void remove()
+            return
+          }
           if (props.mode === "link") {
             if (!active || id === active) return
             void update((tree) =>
@@ -120,7 +147,9 @@ export function DialogContextTree(props: {
 
   return (
     <DialogSelect
-      title={props.mode === "link" ? "Link context node" : "Context tree"}
+      title={
+        props.mode === "link" ? "Link context node" : props.mode === "delete" ? "Delete context node" : "Context tree"
+      }
       options={options()}
       current={tree()?.active}
     />

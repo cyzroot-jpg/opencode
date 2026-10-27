@@ -1,3 +1,4 @@
+import { SessionContextTree } from "@opencode/core/session/context-tree"
 import { Plugin } from "@opencode/plugin/tui"
 import { createMemo, Show } from "solid-js"
 import { contextUsage } from "../../util/session"
@@ -9,8 +10,13 @@ const money = new Intl.NumberFormat("en-US", {
 
 export function SidebarContext(props: { context: Plugin.Context; sessionID: string }) {
   const theme = props.context.theme
-  const msg = createMemo(() => props.context.data.session.message.list(props.sessionID))
   const session = createMemo(() => props.context.data.session.get(props.sessionID))
+  const tree = createMemo(() => SessionContextTree.get(session()?.metadata))
+  const msg = createMemo(() => {
+    const list = props.context.data.session.message.list(props.sessionID)
+    const current = tree()
+    return current ? SessionContextTree.visible(current, list) : list
+  })
   const cost = createMemo(() => props.context.data.session.cost(props.sessionID))
 
   const state = createMemo(() =>

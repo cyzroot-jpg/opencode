@@ -210,6 +210,41 @@ describe("SessionContextTree", () => {
     ])
   })
 
+  test("removes a node and its descendants", () => {
+    const tree = {
+      version: 1 as const,
+      root: "u1",
+      active: "u3",
+      nodes: {
+        u1: { label: "first", links: ["u2"] },
+        u2: { parent: "u1", label: "second" },
+        u3: { parent: "u2", label: "third" },
+        u4: { label: "fourth", links: ["u1"] },
+      },
+    }
+    const next = SessionContextTree.remove(tree, "u1")
+    expect(next).toMatchObject({
+      version: 1,
+      root: "u4",
+      active: "u4",
+      pendingRoot: false,
+      nodes: { u4: { label: "fourth" } },
+    })
+  })
+
+test("clears the tree when the last root is removed", () => {
+    const tree = {
+      version: 1 as const,
+      root: "u1",
+      active: "u1",
+      nodes: { u1: { label: "first" } },
+    }
+    const next = SessionContextTree.remove(tree, "u1")
+    expect(next).toEqual({ version: 1, pendingRoot: true, nodes: {} })
+    expect(SessionContextTree.visible(next, [{ id: "u1", type: "user" }])).toEqual([])
+    expect(SessionContextTree.filter(next, [turn(0, "u1")])).toEqual([])
+  })
+
   test("reads and detaches metadata without touching other keys", () => {
     const metadata: Record<string, unknown> = { host: "kept", [SessionContextTree.Key]: {} }
     expect(SessionContextTree.get(metadata)).toBeUndefined()

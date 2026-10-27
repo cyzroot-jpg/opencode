@@ -135,6 +135,46 @@ export const unlink = (tree: Info, id: string) => {
   }
 }
 
+export const remove = (tree: Info, id: string) => {
+  if (!tree.nodes[id]) return tree
+  const removed = new Set<string>()
+  const pending = [id]
+  while (pending.length) {
+    const current = pending.pop()!
+    if (removed.has(current)) continue
+    removed.add(current)
+    for (const [child, node] of Object.entries(tree.nodes)) {
+      if (node.parent === current) pending.push(child)
+    }
+  }
+  const nodes: Record<string, Node> = {}
+  for (const [nodeID, node] of Object.entries(tree.nodes)) {
+    if (removed.has(nodeID)) continue
+    const links = node.links?.filter((link) => !removed.has(link))
+    nodes[nodeID] = {
+      label: node.label,
+      ...(node.parent && !removed.has(node.parent) ? { parent: node.parent } : {}),
+      ...(links?.length ? { links } : {}),
+    }
+  }
+  const remaining = Object.keys(nodes)
+  if (remaining.length === 0) return { version: 1 as const, pendingRoot: true, nodes: {} }
+  const roots = remaining.filter((nodeID) => !nodes[nodeID]!.parent)
+  const parent = tree.nodes[id]?.parent
+  return {
+    version: 1 as const,
+    root: tree.root && nodes[tree.root] ? tree.root : roots[0],
+    active:
+      tree.active && !removed.has(tree.active)
+        ? tree.active
+        : parent && nodes[parent]
+          ? parent
+          : roots[0],
+    pendingRoot: false,
+    nodes,
+  }
+}
+
 export const order = (tree: Info) => {
   const result: { readonly id: string; readonly node: Node; readonly depth: number }[] = []
   const children = new Map<string | undefined, string[]>()
@@ -173,6 +213,7 @@ export interface Entry {
 }
 
 export const visible = <T extends { readonly id: string; readonly type: string }>(tree: Info, messages: readonly T[]) => {
+  if (Object.keys(tree.nodes).length === 0) return []
   const users = messages.flatMap((message, index) => (message.type === "user" ? [{ id: message.id, index }] : []))
   const position = new Map(users.map((user, index) => [user.id, index]))
   const active = tree.active
@@ -199,6 +240,7 @@ export const visible = <T extends { readonly id: string; readonly type: string }
 }
 
 export const filter = <T extends Entry>(tree: Info, entries: readonly T[]) => {
+  if (Object.keys(tree.nodes).length === 0) return []
   const users = entries.filter((entry) => entry.message.type === "user").map((entry) => entry.message.id)
   const seq = new Map(entries.map((entry) => [entry.message.id, entry.seq]))
   const active = tree.active

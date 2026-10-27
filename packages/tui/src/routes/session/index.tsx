@@ -1102,7 +1102,8 @@ export function Session(props: {
           armNewRoot()
           return
         }
-        const mode = argument === "link" ? "link" : "switch"
+        const mode =
+          argument === "link" ? "link" : argument === "delete" || argument === "remove" ? "delete" : "switch"
         dialog.replace(() => (
           <DialogContextTree sessionID={route.sessionID} mode={mode} onSwitch={toBottom} />
         ))
