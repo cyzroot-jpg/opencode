@@ -1,11 +1,4 @@
-export * as GlobalStatePlugin from "./global-state.js"
-
-import { Message } from "@opencode/ai/effect"
-import type { Session } from "@opencode/schema/session"
-import { define } from "@opencode/plugin/effect/plugin"
-import { isRecord } from "@opencode/util/record"
-import { Effect, Stream } from "effect"
-import type { PluginInternal } from "./internal.js"
+import { Plugin } from "@opencode/plugin"
 
 export type FileState = {
   readonly file: string
@@ -33,6 +26,9 @@ export type State = {
 const MAX_FILES = 20
 const MAX_TODOS = 30
 const MAX_COMMANDS = 5
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
 
 export const createState = (): State => ({ files: new Map(), todos: [], commands: [] })
 
@@ -127,8 +123,7 @@ export const renderState = (state: State, directory: string) => {
   if (files.length > 0) {
     lines.push("Changed files:")
     for (const file of files) {
-      const stats =
-        file.additions === 0 && file.deletions === 0 ? "" : `, +${file.additions} -${file.deletions}`
+      const stats = file.additions === 0 && file.deletions === 0 ? "" : `, +${file.additions} -${file.deletions}`
       lines.push(`- ${file.file} (${file.status}${stats})`)
     }
   }
@@ -146,35 +141,31 @@ export const renderState = (state: State, directory: string) => {
   return lines.join("\n")
 }
 
-export const Plugin = define({
+export default Plugin.define({
   id: "opencode.global-state",
-  effect: Effect.fn("GlobalStatePlugin")(function* (ctx) {
-    const states = new Map<Session.ID, State>()
-    const seeded = new Set<Session.ID>()
-    const refreshing = new Set<Session.ID>()
+  async setup(ctx) {
+    type SessionID = Parameters<typeof ctx.session.context>[0]["sessionID"]
+    const states = new Map<SessionID, State>()
+    const seeded = new Set<SessionID>()
+    const refreshing = new Set<SessionID>()
 
-    const refreshStatus = (sessionID: Session.ID) =>
-      Effect.gen(function* () {
-        if (refreshing.has(sessionID)) return
-        refreshing.add(sessionID)
-        const state = states.get(sessionID) ?? createState()
-        states.set(sessionID, state)
-        const status = yield* ctx.vcs.status().pipe(
-          Effect.timeout("2 seconds"),
-          Effect.catchCause(() => Effect.succeed(undefined)),
-        )
+    const refreshStatus = async (sessionID: SessionID, state: State) => {
+      if (refreshing.has(sessionID)) return
+      refreshing.add(sessionID)
+      try {
+        const status = await ctx.vcs.status(undefined, { signal: AbortSignal.timeout(2_000) }).catch(() => undefined)
         if (status) for (const file of status.data) setFile(state, file)
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => refreshing.delete(sessionID))),
-        Effect.catchCause((cause) => Effect.logWarning("failed to refresh global state", { cause })),
-      )
+      } finally {
+        refreshing.delete(sessionID)
+      }
+    }
 
-    const ensure = Effect.fnUntraced(function* (sessionID: Session.ID) {
+    const ensure = async (sessionID: SessionID) => {
       const state = states.get(sessionID) ?? createState()
       states.set(sessionID, state)
       if (seeded.has(sessionID)) return state
       seeded.add(sessionID)
-      const messages = yield* ctx.session.context({ sessionID }).pipe(Effect.catchCause(() => Effect.succeed([])))
+      const messages = await ctx.session.context({ sessionID }, { signal: AbortSignal.timeout(5_000) }).catch(() => [])
       for (const message of messages) {
         if (message.type !== "assistant") continue
         for (const part of message.content) {
@@ -182,41 +173,35 @@ export const Plugin = define({
           apply(state, part.name, part.state.input, { metadata: part.state.metadata })
         }
       }
-      const status = yield* ctx.vcs.status().pipe(
-        Effect.timeout("2 seconds"),
-        Effect.catchCause(() => Effect.succeed(undefined)),
-      )
-      if (status) for (const file of status.data) setFile(state, file)
+      await refreshStatus(sessionID, state)
       return state
+    }
+
+    await ctx.tool.hook("execute.after", async (event) => {
+      if (event.status !== "completed") return
+      try {
+        const state = await ensure(event.sessionID)
+        apply(state, event.tool, event.input, { output: event.result.output, metadata: event.result.metadata })
+        if (event.tool === "shell") await refreshStatus(event.sessionID, state)
+      } catch {}
     })
 
-    yield* ctx.tool.hook("execute.after", (event) =>
-      Effect.gen(function* () {
-        if (event.status !== "completed") return
-        const state = yield* ensure(event.sessionID)
-        apply(state, event.tool, event.input, { output: event.result.output, metadata: event.result.metadata })
-        if (event.tool === "shell") yield* refreshStatus(event.sessionID)
-      }).pipe(Effect.catchCause((cause) => Effect.logWarning("failed to update global state", { cause }))),
-    )
-
-    yield* ctx.session.hook("context", (event) =>
-      Effect.gen(function* () {
-        const state = yield* ensure(event.sessionID)
+    await ctx.session.hook("context", async (event) => {
+      try {
+        const state = await ensure(event.sessionID)
         const text = renderState(state, ctx.location.directory)
-        if (!text) return
-        const at = event.messages.at(-1)?.role === "user" ? event.messages.length - 1 : event.messages.length
-        event.messages.splice(at, 0, Message.user(text))
-      }).pipe(Effect.catchCause((cause) => Effect.logWarning("failed to inject global state", { cause }))),
-    )
+        if (text) event.system.push({ type: "text", text })
+      } catch {}
+    })
 
-    yield* ctx.event.subscribe({ types: ["session.deleted"] }).pipe(
-      Stream.runForEach((event) =>
-        Effect.sync(() => {
+    void (async () => {
+      try {
+        for await (const event of ctx.event.subscribe({ types: ["session.deleted"] })) {
           states.delete(event.data.sessionID)
           seeded.delete(event.data.sessionID)
-        }),
-      ),
-      Effect.forkScoped({ startImmediately: true }),
-    )
-  }),
-} satisfies PluginInternal.InternalPlugin)
+          refreshing.delete(event.data.sessionID)
+        }
+      } catch {}
+    })()
+  },
+})
