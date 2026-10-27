@@ -912,6 +912,7 @@ export function Session(props: {
         metadata: SessionContextTree.set(current.metadata, SessionContextTree.armRoot(tree)),
       })
       .then(async () => {
+        data.session.invalidate(route.sessionID)
         await data.session.sync(route.sessionID)
         toast.show({ message: "Next prompt starts a new root", variant: "success", duration: 4000 })
       })

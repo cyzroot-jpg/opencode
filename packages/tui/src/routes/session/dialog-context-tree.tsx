@@ -49,6 +49,7 @@ export function DialogContextTree(props: {
           metadata: SessionContextTree.set(current.metadata, next),
         })
         setTree(next)
+        data.session.invalidate(props.sessionID)
         await data.session.sync(props.sessionID)
         setTree(SessionContextTree.get(data.session.get(props.sessionID)?.metadata) ?? next)
       } catch (error) {
