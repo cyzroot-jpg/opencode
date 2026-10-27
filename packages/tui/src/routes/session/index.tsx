@@ -174,7 +174,12 @@ export function Session(props: {
   const theme = useTheme()
   const promptRef = usePromptRef()
   const session = createMemo(() => data.session.get(route.sessionID))
-  const messages = () => data.session.message.list(route.sessionID)
+  const contextTree = createMemo(() => SessionContextTree.get(session()?.metadata))
+  const messages = createMemo(() => {
+    const tree = contextTree()
+    const list = data.session.message.list(route.sessionID)
+    return tree ? SessionContextTree.visible(tree, list) : list
+  })
   const messageIndexes = createMemo(() => new Map(messages().map((message, index) => [message.id, index])))
   const legacy = createMemo(() => SessionTurn.legacy(messages()))
   const messagesBeforeRevert = () => {
@@ -1068,7 +1073,9 @@ export function Session(props: {
       slash: { name: "tree", arguments: true as const },
       run: (input?: string) => {
         const mode = input?.trim().toLowerCase() === "link" ? "link" : "switch"
-        dialog.replace(() => <DialogContextTree sessionID={route.sessionID} mode={mode} />)
+        dialog.replace(() => (
+          <DialogContextTree sessionID={route.sessionID} mode={mode} onSwitch={toBottom} />
+        ))
       },
     },
     {
@@ -1235,12 +1242,12 @@ export function Session(props: {
       group: "Session",
       palette: undefined,
       run: () => {
-        const messages = data.session.message.list(route.sessionID)
-        if (!messages || !messages.length) return
+        const list = messages()
+        if (!list || !list.length) return
 
         // Find the most recent user message with non-ignored, non-synthetic text parts
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const message = messages[i]
+        for (let i = list.length - 1; i >= 0; i--) {
+          const message = list[i]
           if (!message || message.type !== "user" || !message.text.trim()) continue
           {
             jumpToMessage(message.id)
@@ -1517,6 +1524,7 @@ export function Session(props: {
         groupExploration,
         diffWrapMode,
         models,
+        messages,
         messageIndex: (messageID) => messageIndexes().get(messageID),
         legacyTurns: legacy,
         config,
@@ -2027,7 +2035,6 @@ function SessionPartView(props: {
 function AssistantFooter(props: { message: SessionMessageAssistant }) {
   const ctx = use()
   const config = useConfig()
-  const data = useData()
   const local = useLocal()
   const theme = useTheme()
   const model = createMemo(
@@ -2037,7 +2044,7 @@ function AssistantFooter(props: { message: SessionMessageAssistant }) {
         .find((model) => model.providerID === props.message.model.providerID && model.id === props.message.model.id)
         ?.name ?? `${props.message.model.providerID}/${props.message.model.id}`,
   )
-  const messages = createMemo(() => data.session.message.list(ctx.sessionID))
+  const messages = ctx.messages
   const turn = () => ({ index: ctx.messageIndex(props.message.id), legacy: ctx.legacyTurns() })
   const duration = createMemo(() => SessionTurn.duration(messages(), props.message, turn()))
   const tokensPerSecond = createMemo(() => SessionTurn.tokensPerSecond(messages(), props.message, turn()))

@@ -1,4 +1,5 @@
 import type { SessionInboxEnqueued, SessionMessageAssistant, SessionMessageInfo } from "@opencode/client"
+import { SessionContextTree } from "@opencode/core/session/context-tree"
 import { createEffect, on, onCleanup, type Accessor } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useConfig } from "../../config"
@@ -50,11 +51,14 @@ export function createSessionRows(sessionID: Accessor<string>, onSynced?: (sessi
   const config = useConfig()
   const [rows, setRows] = createStore<(SessionRow & { key?: string })[]>([])
   const revertBoundary = () => data.session.get(sessionID())?.revert?.messageID
+  const contextTree = () => SessionContextTree.get(data.session.get(sessionID())?.metadata)
   const turnTokens = () => Boolean(config.data.debug?.turn_tokens)
   const verbosity = () => config.data.session?.verbosity ?? defaultVerbosity
 
   function reduce() {
-    const messages = data.session.message.list(sessionID())
+    const all = data.session.message.list(sessionID())
+    const tree = contextTree()
+    const messages = tree ? SessionContextTree.visible(tree, all) : all
     const inputs = new Set(data.session.input.list(sessionID()))
     const pending = data.session.pending.list(sessionID())
     const queued = new Set(
@@ -143,6 +147,8 @@ export function createSessionRows(sessionID: Accessor<string>, onSynced?: (sessi
   // Re-reduce when the revert boundary changes (stage/clear/commit). These reactions defer
   // their first run: the mount effect above has already reduced the same state.
   createEffect(on(revertBoundary, rebuild, { defer: true }))
+
+  createEffect(on(() => contextTree()?.active, rebuild, { defer: true }))
 
   createEffect(
     on(

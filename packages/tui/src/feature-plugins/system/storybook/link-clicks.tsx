@@ -91,6 +91,7 @@ function LinkClicksStory(props: { context: Plugin.Context }) {
           groupExploration: () => false,
           diffWrapMode: () => "word",
           models: () => [],
+          messages: () => [],
           messageIndex: () => undefined,
           legacyTurns: () => false,
           config: config.data,

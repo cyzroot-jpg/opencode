@@ -157,6 +157,32 @@ export interface Entry {
   }
 }
 
+export const visible = <T extends { readonly id: string; readonly type: string }>(tree: Info, messages: readonly T[]) => {
+  const users = messages.flatMap((message, index) => (message.type === "user" ? [{ id: message.id, index }] : []))
+  const position = new Map(users.map((user, index) => [user.id, index]))
+  const active = tree.active
+  if (!active || !position.has(active)) return [...messages]
+  const activePath = path(tree, active).filter((id) => position.has(id))
+  if (activePath.length === 0) return [...messages]
+  const ranges = activePath.map((id) => {
+    const index = position.get(id)!
+    return {
+      start: id === tree.root && index === 0 ? 0 : users[index]!.index,
+      end: users[index + 1]?.index ?? messages.length,
+    }
+  })
+  const selected: T[] = []
+  const seen = new Set<number>()
+  for (const range of ranges) {
+    for (let index = range.start; index < range.end; index++) {
+      if (seen.has(index)) continue
+      seen.add(index)
+      selected.push(messages[index]!)
+    }
+  }
+  return selected
+}
+
 export const filter = <T extends Entry>(tree: Info, entries: readonly T[]) => {
   const users = entries.filter((entry) => entry.message.type === "user").map((entry) => entry.message.id)
   const seq = new Map(entries.map((entry) => [entry.message.id, entry.seq]))

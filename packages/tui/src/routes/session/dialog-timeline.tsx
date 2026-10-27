@@ -1,3 +1,4 @@
+import { SessionContextTree } from "@opencode/core/session/context-tree"
 import { createMemo, onMount } from "solid-js"
 import { useData } from "../../context/data"
 import { DialogSelect, type DialogSelectOption } from "../../ui/dialog-select"
@@ -19,7 +20,9 @@ export function DialogTimeline(props: {
   })
 
   const options = createMemo((): DialogSelectOption<string>[] => {
-    const messages = data.session.message.list(props.sessionID)
+    const list = data.session.message.list(props.sessionID)
+    const tree = SessionContextTree.get(data.session.get(props.sessionID)?.metadata)
+    const messages = tree ? SessionContextTree.visible(tree, list) : list
     const result = [] as DialogSelectOption<string>[]
     for (const message of messages) {
       if (message.type !== "user") continue

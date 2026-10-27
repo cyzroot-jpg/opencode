@@ -7,7 +7,7 @@ import { useDialog } from "../../ui/dialog"
 import { useToast } from "../../ui/toast"
 import { errorMessage } from "../../util/error"
 
-export function DialogContextTree(props: { sessionID: string; mode: "switch" | "link" }) {
+export function DialogContextTree(props: { sessionID: string; mode: "switch" | "link"; onSwitch?: () => void }) {
   const data = useData()
   const client = useClient()
   const dialog = useDialog()
@@ -73,6 +73,7 @@ export function DialogContextTree(props: { sessionID: string; mode: "switch" | "
         }
         void update(SessionContextTree.switchTo(current, id)).then(() => {
           dialog.clear()
+          props.onSwitch?.()
           toast.show({ message: `Context switched to ${node.label}`, variant: "success", duration: 3000 })
         })
       },

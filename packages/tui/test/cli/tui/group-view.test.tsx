@@ -328,6 +328,7 @@ function mount(input: {
                 legacyTurns: () => false,
                 diffWrapMode: () => "word",
                 models: () => [],
+                messages: () => [],
                 messageIndex: () => undefined,
                 config: input.config,
                 mutatePending: async () => true,

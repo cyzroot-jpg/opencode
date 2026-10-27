@@ -97,6 +97,36 @@ describe("SessionContextTree", () => {
     ])
   })
 
+  test("shows only the active ancestry in order", () => {
+    const messages = [
+      { id: "u1", type: "user" },
+      { id: "a1", type: "assistant" },
+      { id: "u2", type: "user" },
+      { id: "a2", type: "assistant" },
+      { id: "u3", type: "user" },
+      { id: "a3", type: "assistant" },
+    ]
+    const tree = {
+      version: 1 as const,
+      root: "u1",
+      active: "u2",
+      nodes: {
+        u1: { label: "first" },
+        u2: { parent: "u1", label: "second" },
+        u3: { parent: "u1", label: "third" },
+      },
+    }
+    expect(SessionContextTree.visible(tree, messages).map((message) => message.id)).toEqual([
+      "u1",
+      "a1",
+      "u2",
+      "a2",
+    ])
+    expect(
+      SessionContextTree.visible({ ...tree, active: "u1" }, messages).map((message) => message.id),
+    ).toEqual(["u1", "a1"])
+  })
+
   test("appends a linked sibling branch", () => {
     const tree = {
       version: 1 as const,

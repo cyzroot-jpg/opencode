@@ -1,6 +1,6 @@
 import { createContext, useContext } from "solid-js"
 import type { Renderable } from "@opentui/core"
-import type { ModelInfo } from "@opencode/client"
+import type { ModelInfo, SessionMessageInfo } from "@opencode/client"
 import type { SessionInbox } from "@opencode/schema/session-inbox"
 import type { useConfig } from "../../config"
 import type { ThinkingMode } from "../../context/thinking"
@@ -29,6 +29,7 @@ export const context = createContext<{
   groupExploration: () => boolean
   diffWrapMode: () => "word" | "none"
   models: () => ModelInfo[]
+  messages: () => SessionMessageInfo[]
   messageIndex: (messageID: string) => number | undefined
   /** True when the session has no idle markers, so turn footers end at the next prompt. */
   legacyTurns: () => boolean
