@@ -1,114 +1,114 @@
-<p align="center">
-  <a href="https://opencode.ai">
-    <picture>
-      <source srcset="packages/console/app/src/asset/logo-ornate-dark.svg" media="(prefers-color-scheme: dark)">
-      <source srcset="packages/console/app/src/asset/logo-ornate-light.svg" media="(prefers-color-scheme: light)">
-      <img src="packages/console/app/src/asset/logo-ornate-light.svg" alt="OpenCode logo">
-    </picture>
-  </a>
-</p>
-<p align="center">The open source AI coding agent.</p>
-<p align="center">
-  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
-  <a href="https://www.npmjs.com/package/@opencode/cli"><img alt="npm" src="https://img.shields.io/npm/v/@opencode/cli?style=flat-square" /></a>
-  <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
-</p>
+# TreeCode
 
-<p align="center">
-  <a href="README.md">English</a> |
-  <a href="README.zh.md">简体中文</a> |
-  <a href="README.zht.md">繁體中文</a> |
-  <a href="README.ko.md">한국어</a> |
-  <a href="README.de.md">Deutsch</a> |
-  <a href="README.es.md">Español</a> |
-  <a href="README.fr.md">Français</a> |
-  <a href="README.it.md">Italiano</a> |
-  <a href="README.da.md">Dansk</a> |
-  <a href="README.ja.md">日本語</a> |
-  <a href="README.pl.md">Polski</a> |
-  <a href="README.ru.md">Русский</a> |
-  <a href="README.bs.md">Bosanski</a> |
-  <a href="README.ar.md">العربية</a> |
-  <a href="README.no.md">Norsk</a> |
-  <a href="README.br.md">Português (Brasil)</a> |
-  <a href="README.th.md">ไทย</a> |
-  <a href="README.tr.md">Türkçe</a> |
-  <a href="README.uk.md">Українська</a> |
-  <a href="README.bn.md">বাংলা</a> |
-  <a href="README.gr.md">Ελληνικά</a> |
-  <a href="README.vi.md">Tiếng Việt</a>
-</p>
+[English](README.en.md) | 中文
 
-[![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
+TreeCode 是一个面向长任务编程的分支式 AI 编程代理。它基于 OpenCode（MIT）构建，并把会话上下文从单线历史升级为**可切换、可压缩、可引用的上下文树**。
 
----
+> TreeCode 是 OpenCode 的衍生项目，不是 OpenCode 官方产品，也不代表 OpenCode 团队。
 
-### Installation
+## 为什么需要 TreeCode
 
-```bash
-# YOLO
-curl -fsSL https://opencode.ai/v2/install | bash
+传统 AI 编程会话是一条线：
 
-# Package managers
-npm i -g @opencode/cli@latest      # or bun/pnpm/yarn
-brew install anomalyco/tap/opencode-v2 # macOS and Linux (recommended, always up to date)
-brew install opencode              # macOS and Linux (official brew formula, updated less)
-sudo pacman -S opencode            # Arch Linux (Stable)
-paru -S opencode-beta              # Arch Linux (Latest from AUR)
-mise use -g opencode               # Any OS
-nix run github:anomalyco/opencode  # Nix
+- 想回到旧方案，只能编辑历史或重新开会话
+- 多个方案会互相污染上下文
+- 长对话压缩会把无关分支的结论混进来
+- 旧分支看不到工作区后来的变化
+
+TreeCode 把每个用户提问变成树节点：
+
+- 切回任意节点，TUI 和模型上下文一起切换
+- 从旧节点继续提问会自然分叉，不覆盖原分支
+- 可以创建多个独立根节点
+- 可以把另一条分支 link 进当前上下文，但不合并界面
+- 压缩只作用于指定节点，切换分支时复用对应检查点
+- 文件、todo、shell 状态跨分支共享，避免旧分支误判工作区
+
+## 功能
+
+- **节点切换**：只保留当前节点到根的路径
+- **自然分叉**：从旧节点继续生成新的兄弟分支
+- **多根节点**：为无关任务开启全新上下文
+- **跨分支链接**：把目标路径加入模型上下文，保留来源
+- **节点删除**：递归删除节点及其后代
+- **节点压缩**：压缩结果绑定到节点，不污染其他分支
+- **共享工作区状态**：注入最新的文件变更、todo 和 shell 命令
+- **侧边栏链接提示**：显示当前节点链接了哪些分支
+
+## 使用
+
+启动后，在会话中执行：
+
+```text
+/tree                  选择并切换上下文节点
+/tree new              下一次提问开启新的根节点
+/tree link             链接/取消链接另一个节点
+/tree delete           删除节点及其后代
+/tree compact          切换并压缩指定节点
 ```
 
-> [!TIP]
-> Remove versions older than 0.1.x before installing.
+第一次执行 `/tree` 时会根据已有用户消息建立树；之后的新提问会自动追加节点。
 
-### Desktop App (BETA)
+## 从源码运行
 
-OpenCode is also available as a desktop application. Download it from [opencode.ai/download](https://opencode.ai/download).
+当前阶段以源码分发的开发构建为主：
 
-| Platform              | Download                           |
-| --------------------- | ---------------------------------- |
-| macOS (Apple Silicon) | `opencode-desktop-mac-arm64.dmg`   |
-| macOS (Intel)         | `opencode-desktop-mac-x64.dmg`     |
-| Windows               | `opencode-desktop-win-x64.exe`     |
-| Linux                 | `.deb`, `.rpm`, or `.AppImage`     |
-
-```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
+```sh
+git clone --branch context-tree https://github.com/cyzroot-jpg/opencode.git
+cd opencode
+bun install
+bun run dev
 ```
 
-#### Installation Directory
+Windows 上也可以使用仓库根目录的启动脚本：
 
-The install script installs OpenCode to `$HOME/.opencode/bin`.
+```bat
+treecode.cmd C:\path\to\your\project
+```
 
-### Agents
+命令别名：
 
-OpenCode includes two built-in agents you can switch between with the `Tab` key.
+- 产品命令：`treecode`
+- 兼容命令：`opencode`
 
-- **build** - Default, full-access agent for development work
-- **plan** - Read-only agent for analysis and code exploration
-  - Denies file edits by default
-  - Asks permission before running bash commands
-  - Ideal for exploring unfamiliar codebases or planning changes
+## 兼容性
 
-Also included is a **general** subagent for complex searches and multistep tasks.
-This is used internally and can be invoked using `@general` in messages.
+TreeCode 保留 OpenCode 的内部兼容层：
 
-Learn more about [agents](https://opencode.ai/v2/docs/agents).
+- 继续读取 `~/.config/opencode` 配置
+- 继续支持 `OPENCODE_*` 环境变量
+- 继续使用 OpenCode 插件和现有会话数据
+- 新增 `treecode` 命令别名，不破坏已有 `opencode` 用法
 
-### Documentation
+这是刻意的取舍：先把产品体验做成 TreeCode，再逐步决定哪些内部标识需要迁移。
 
-For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/v2/docs).
+## 和 OpenCode 的关系
 
-### Contributing
+TreeCode 基于 OpenCode 的 MIT 源码，保留原始版权和许可证。主要差异是：
 
-If you're interested in contributing to OpenCode, please read our [contributing docs](./CONTRIBUTING.md) before submitting a pull request.
+- 上下文树成为核心会话模型
+- TUI 同时投影树结构和模型上下文
+- 节点级压缩、跨分支链接、共享工作区状态
+- 用户可见品牌和命令改为 TreeCode
 
-### Building on OpenCode
+上游项目：https://github.com/anomalyco/opencode
 
-If you are working on a project that's related to OpenCode and is using "opencode" as part of its name, for example "opencode-dashboard" or "opencode-mobile", please add a note to your README to clarify that it is not built by the OpenCode team and is not affiliated with us in any way.
+## 开发
 
----
+```sh
+bun install
+bun test
+bun run typecheck
+```
 
-**Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
+## 限制
+
+- 树以用户提问为节点，工具调用和助手回复归属于所在提问区间
+- link 只影响模型上下文，不会把另一分支的对话显示在当前界面
+- 工作区状态按 session 跟踪，VCS 状态最多每 2 秒刷新一次
+- 对话树不隔离文件系统；需要并行实验时仍应配合 Git worktree
+- 内部包名和环境变量暂未重命名，以保持兼容
+
+## License
+
+MIT。原始 OpenCode 版权归其作者所有；TreeCode 的修改同样以 MIT 发布。

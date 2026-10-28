@@ -4,10 +4,9 @@
   "version": "2.1.4",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://opencode.ai",
+  "homepage": "https://github.com/cyzroot-jpg/opencode",
   "author": {
-    "name": "OpenCode",
-    "email": "hello@opencode.ai"
+    "name": "TreeCode"
   },
   "scripts": {
     "typecheck": "bun check --no-script -b",

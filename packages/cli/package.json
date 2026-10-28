@@ -2,9 +2,11 @@
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@opencode/cli",
   "version": "2.1.4",
+  "description": "TreeCode command line interface",
   "type": "module",
   "license": "MIT",
   "bin": {
+    "treecode": "./bin/opencode.cjs",
     "opencode": "./bin/opencode.cjs",
     "opencode2": "./bin/opencode2.cjs"
   },
