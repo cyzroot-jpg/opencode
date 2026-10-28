@@ -524,9 +524,10 @@ export const layer = Layer.effect(
         { fit: fit - overhead, history: withoutTail(prepared.request, keepID), measured },
         background,
       )
-      if (!keepID) return result
+      const metadata = { ...prepared.event.metadata, ...result.metadata }
+      if (!keepID) return Object.keys(metadata).length > 0 ? { ...result, metadata } : result
       // A compaction hook may choose its own kept range.
-      return { ...result, metadata: { keepID, ...result.metadata } }
+      return { ...result, metadata: { ...metadata, keepID } }
     })
 
     const compactTree = Effect.fnUntraced(function* (trigger: Trigger, tree: SessionContextTree.Info) {
@@ -608,7 +609,9 @@ export const layer = Layer.effect(
         return unsupported(`Native compaction is not supported for ${request.model.provider}/${request.model.route.id}`)
       }
 
-      return yield* deliver(trigger, prepared, budget, send)
+      const result = yield* deliver(trigger, prepared, budget, send)
+      if (!prepared.event.metadata) return result
+      return { ...result, metadata: { ...prepared.event.metadata, ...result.metadata } }
     })
 
     /**
@@ -636,7 +639,14 @@ export const layer = Layer.effect(
       background?: Background,
     ): Effect.fn.Return<Result, Failure> {
       const context = trigger.context
-      if (prepared.event.result) return yield* fromHook(context, prepared.event.result, background)
+      if (prepared.event.result)
+        return yield* fromHook(context, prepared.event.result, background).pipe(
+          Effect.map((result) =>
+            prepared.event.metadata
+              ? { ...result, metadata: { ...prepared.event.metadata, ...result.metadata } }
+              : result,
+          ),
+        )
 
       const policy = yield* SessionRunnerRetry.policy(context.session.id)
       let rejections = 0

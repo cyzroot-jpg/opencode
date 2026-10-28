@@ -30,6 +30,7 @@ import { useAttention } from "../context/attention"
 import { useStorage } from "../context/storage"
 import { useSessionTabs } from "../context/session-tabs"
 import { useOptionalPanel } from "../context/panel"
+import { registerMessageFilter } from "./message-filters"
 import { useLocal } from "../context/local"
 import { abbreviateHome } from "../util/path-format"
 
@@ -203,6 +204,13 @@ export function createPluginContext(input: {
     },
     ui: {
       dialog: dialogApi,
+      messages: {
+        filter(callback) {
+          const dispose = registerMessageFilter(input.id, callback)
+          input.owned.push(async () => dispose())
+          return dispose
+        },
+      },
       toast: toastApi,
       format: {
         path: (value) => abbreviateHome(value, host.paths.home),

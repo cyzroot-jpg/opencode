@@ -1,5 +1,6 @@
 import type { SessionInboxEnqueued, SessionMessageAssistant, SessionMessageInfo } from "@opencode/client"
 import { SessionContextTree } from "@opencode/core/session/context-tree"
+import { applyMessageFilters } from "../../plugin/message-filters"
 import { createEffect, on, onCleanup, type Accessor } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useConfig } from "../../config"
@@ -58,7 +59,7 @@ export function createSessionRows(sessionID: Accessor<string>, onSynced?: (sessi
   function reduce() {
     const all = data.session.message.list(sessionID())
     const tree = contextTree()
-    const messages = tree ? SessionContextTree.visible(tree, all) : all
+    const messages = applyMessageFilters(sessionID(), tree ? SessionContextTree.visible(tree, all) : all)
     const inputs = new Set(data.session.input.list(sessionID()))
     const pending = data.session.pending.list(sessionID())
     const queued = new Set(

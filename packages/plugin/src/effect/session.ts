@@ -46,6 +46,15 @@ export interface SessionCompactionResult {
 export interface SessionCompaction extends SessionContext {
   /** Set to use this compaction and skip the model request. */
   result?: SessionCompactionResult
+  /** Metadata merged into the completed compaction message. */
+  metadata?: Record<string, unknown>
+}
+
+export interface SessionHistory {
+  readonly session: Session.Info
+  readonly messages: ReadonlyArray<SessionMessage.Info>
+  /** Replaces the raw history for this request when set. */
+  result?: ReadonlyArray<SessionMessage.Info>
 }
 
 export interface SessionGenerate extends SessionContext {}
@@ -138,6 +147,7 @@ export interface SessionRetry {
 
 export interface SessionHooks {
   readonly prompt: SessionPrompt
+  readonly history: SessionHistory
   readonly context: SessionContext
   readonly compaction: SessionCompaction
   readonly generate: SessionGenerate

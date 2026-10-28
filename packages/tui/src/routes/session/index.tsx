@@ -16,6 +16,7 @@ import path from "node:path"
 import { EOL, tmpdir } from "node:os"
 import { mkdir, writeFile } from "node:fs/promises"
 import { SessionContextTree } from "@opencode/core/session/context-tree"
+import { applyMessageFilters } from "../../plugin/message-filters"
 import { useRoute, useRouteData } from "../../context/route"
 import { createStore } from "solid-js/store"
 import { useData } from "../../context/data"
@@ -178,7 +179,8 @@ export function Session(props: {
   const messages = createMemo(() => {
     const tree = contextTree()
     const list = data.session.message.list(route.sessionID)
-    return tree ? SessionContextTree.visible(tree, list) : list
+    const scoped = tree ? SessionContextTree.visible(tree, list) : list
+    return applyMessageFilters(route.sessionID, scoped)
   })
   const messageIndexes = createMemo(() => new Map(messages().map((message, index) => [message.id, index])))
   const legacy = createMemo(() => SessionTurn.legacy(messages()))

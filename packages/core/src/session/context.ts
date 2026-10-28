@@ -2,6 +2,7 @@ export * as SessionContext from "./context.js"
 
 import { Model } from "../model.js"
 import { Permission } from "../permission.js"
+import { PluginHooks } from "../plugin/hooks.js"
 import { Context, Effect, Layer } from "effect"
 import { Agent } from "../agent.js"
 import { CodeModeInstructions } from "../codemode/instructions.js"
@@ -19,6 +20,7 @@ import { Tool } from "../tool.js"
 import { AgentNotFoundError } from "./error.js"
 import { SessionHistory } from "./history.js"
 import { InstructionEntry } from "./instruction-entry.js"
+import { InstructionState } from "./instruction-state.js"
 import { SessionContextTree } from "./context-tree.js"
 import { SessionMessage } from "./message.js"
 import { SessionModelRequest } from "./model-request.js"
@@ -53,6 +55,10 @@ export interface Interface {
   readonly select: (sessionID: SessionSchema.ID) => Effect.Effect<Selection, AgentNotFoundError>
   /** Resolves the model and active history for that selection. */
   readonly load: (selection: Selection) => Effect.Effect<Loaded, SessionRunnerModel.Error>
+  /** Resolves the same context with previewed instruction updates, for manual compaction. */
+  readonly preview: (
+    selection: Selection,
+  ) => Effect.Effect<Loaded, SessionRunnerModel.Error | Instructions.InitializationBlocked>
   readonly resolveModel: (
     session: SessionSchema.Info,
   ) => Effect.Effect<SessionRunnerModel.Resolved, SessionRunnerModel.Error>
@@ -83,6 +89,7 @@ const layer = Layer.effect(
     const location = yield* Location.Service
     const mcpInstructions = yield* McpInstructions.Service
     const mcpTools = yield* McpTool.Service
+    const hooks = yield* PluginHooks.Service
     const models = yield* SessionRunnerModel.Service
     const request = yield* SessionModelRequest.Service
     const referenceInstructions = yield* ReferenceInstructions.Service
@@ -169,9 +176,21 @@ const layer = Layer.effect(
     const load = Effect.fn("SessionContext.load")(function* (selection: Selection) {
       const model = yield* resolveModel(selection.session)
       const tree = SessionContextTree.get(selection.session.metadata)
-      const history = tree
-        ? yield* SessionHistory.entriesForTree(db, selection.session.id, selection.instructions, tree)
-        : yield* SessionHistory.entriesForRunner(db, selection.session.id, selection.instructions, model.ref)
+      const normal = () =>
+        tree
+          ? SessionHistory.entriesForTree(db, selection.session.id, selection.instructions, tree)
+          : SessionHistory.entriesForRunner(db, selection.session.id, selection.instructions, model.ref)
+      const history = (yield* hooks.has("session", "history"))
+        ? yield* Effect.gen(function* () {
+            const messages = yield* SessionHistory.raw(db, selection.session.id)
+            const event = yield* hooks.trigger("session", "history", { session: selection.session, messages })
+            if (!event.result) return yield* normal()
+            return {
+              initial: yield* InstructionState.initial(db, selection.session.id, selection.instructions),
+              entries: event.result.map((message, seq) => ({ seq, message })),
+            }
+          })
+        : yield* normal()
       return {
         session: selection.session,
         agent: selection.agent,
@@ -182,7 +201,33 @@ const layer = Layer.effect(
       }
     })
 
-    return Service.of({ select, load, resolveModel, selectTitle, request })
+    const preview = Effect.fn("SessionContext.preview")(function* (selection: Selection) {
+      const model = yield* resolveModel(selection.session)
+      const history = (yield* hooks.has("session", "history"))
+        ? yield* Effect.gen(function* () {
+            const messages = yield* SessionHistory.raw(db, selection.session.id)
+            const event = yield* hooks.trigger("session", "history", { session: selection.session, messages })
+            if (!event.result) return yield* SessionHistory.preview(db, selection.session.id, selection.instructions, model.ref)
+            const unsettled = event.result.findIndex(
+              (message) => message.type === "assistant" && message.time.completed === undefined,
+            )
+            const settled = unsettled === -1 ? event.result : event.result.slice(0, unsettled)
+            const observed = yield* Instructions.read(selection.instructions)
+            const assembled = yield* InstructionState.preview(db, selection.session.id, selection.instructions, observed)
+            return { initial: assembled.initial, messages: settled }
+          })
+        : yield* SessionHistory.preview(db, selection.session.id, selection.instructions, model.ref)
+      return {
+        session: selection.session,
+        agent: selection.agent,
+        model,
+        initial: history.initial,
+        messages: history.messages,
+        tools: selection.tools,
+      }
+    })
+
+    return Service.of({ select, load, preview, resolveModel, selectTitle, request })
   }),
 )
 
@@ -207,6 +252,7 @@ export const node = makeLocationNode({
   deps: [
     Agent.node,
     Model.node,
+    PluginHooks.node,
     Database.node,
     InstructionBuiltIns.node,
     InstructionDiscovery.node,

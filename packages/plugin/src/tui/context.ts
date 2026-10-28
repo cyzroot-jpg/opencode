@@ -487,8 +487,17 @@ export interface Keymap {
   }
 }
 
+export interface MessageFilterInput {
+  readonly sessionID: string
+  readonly messages: readonly SessionMessageInfo[]
+}
+export type MessageFilter = (input: MessageFilterInput) => readonly SessionMessageInfo[]
+
 export interface UI {
   readonly dialog: Dialog
+  readonly messages: {
+    filter(callback: MessageFilter): () => void
+  }
   readonly toast: Toast
   readonly format: {
     path(value: string): string

@@ -230,6 +230,20 @@ export const load = Effect.fn("SessionHistory.load")(function* (
   return (yield* messageEntries(db, sessionID, boundary)).map((entry) => entry.message)
 })
 
+export const raw = Effect.fn("SessionHistory.raw")(function* (
+  db: DatabaseService,
+  sessionID: SessionSchema.ID,
+) {
+  const rows = yield* db
+    .select()
+    .from(SessionMessageTable)
+    .where(eq(SessionMessageTable.session_id, sessionID))
+    .orderBy(asc(SessionMessageTable.seq))
+    .all()
+    .pipe(Effect.orDie)
+  return yield* Effect.forEach(yield* SessionBlob.hydrate(db, rows), decodeMessageRow, { concurrency: 1 }).pipe(Effect.orDie)
+})
+
 export const entriesForRunner = Effect.fn("SessionHistory.entriesForRunner")(function* (
   db: DatabaseService,
   sessionID: SessionSchema.ID,
