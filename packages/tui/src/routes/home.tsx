@@ -18,7 +18,7 @@ import { FadeInText } from "../component/fade-in-text"
 
 let once = false
 const placeholder = {
-  normal: ["Fix a TODO in the codebase", "What is the tech stack of this project?", "Fix broken tests"],
+  normal: ["Compare two implementation paths", "Fix broken tests", "Refactor this module"],
   shell: ["ls -la", "git status", "pwd"],
 }
 
@@ -32,6 +32,7 @@ export function Home() {
   const data = useData()
   const location = useLocation()
   const dimensions = useTerminalDimensions()
+  const theme = useTheme()
   const [logoWidth, setLogoWidth] = createSignal(0)
   // Global MCP elicitations can arrive without a session route, so keep them reachable from Home.
   const currentLocation = () => route.location ?? data.location.default()
@@ -96,6 +97,8 @@ export function Home() {
         >
           <Logo />
         </box>
+        <box height={1} flexShrink={0} />
+        <text fg={theme.text.muted}>Branch your context. Keep every path.</text>
         <box height={1} flexShrink={0} />
         <UpdateNotification width={logoWidth()} />
         <box width="100%" maxWidth={75} zIndex={1000} paddingTop={1} flexShrink={0} position="relative">
