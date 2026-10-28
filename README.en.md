@@ -52,7 +52,7 @@ The first `/tree` builds a tree from existing user messages. Later prompts appen
 ## Run from source
 
 ```sh
-git clone --branch context-tree https://github.com/cyzroot-jpg/opencode.git
+git clone https://github.com/cyzroot-jpg/treecode.git
 cd opencode
 bun install
 bun run dev

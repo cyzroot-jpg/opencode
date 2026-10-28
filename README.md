@@ -56,7 +56,7 @@ TreeCode 把每个用户提问变成树节点：
 当前阶段以源码分发的开发构建为主：
 
 ```sh
-git clone --branch context-tree https://github.com/cyzroot-jpg/opencode.git
+git clone https://github.com/cyzroot-jpg/treecode.git
 cd opencode
 bun install
 bun run dev
