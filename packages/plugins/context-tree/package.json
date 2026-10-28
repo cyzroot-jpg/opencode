@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencode/plugin-context-tree",
+  "version": "2.1.4",
+  "description": "Branch the model context of an OpenCode session into a tree",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anomalyco/opencode.git",
+    "directory": "packages/plugins/context-tree"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./tui": "./src/tui.tsx"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "bun check --no-script"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": "^2.0.27 || ^0.0.0-dev",
+    "@opencode/schema": "^2.0.27 || ^0.0.0-dev",
+    "@opentui/core": ">=0.7.0",
+    "@opentui/solid": ">=0.7.0",
+    "solid-js": ">=1.9.0"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "1.0.9",
+    "@types/bun": "1.4.3",
+    "@typescript/native": "npm:typescript@7.1.0-beta",
+    "@opencode/plugin": "workspace:*",
+    "@opencode/schema": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/solid": "catalog:",
+    "solid-js": "catalog:"
+  }
+}
