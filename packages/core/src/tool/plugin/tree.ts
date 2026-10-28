@@ -86,6 +86,12 @@ export const Plugin = {
               })
             }
             if (input.action === "list") return result(current, describe(current))
+            if (
+              (input.action === "link" || input.action === "unlink") &&
+              process.env.TREECODE_CONTEXT_LINK === "0"
+            ) {
+              return yield* new ToolFailure({ message: "Context tree links are disabled for this experiment" })
+            }
 
             const nodeID = input.nodeID?.trim()
             if (input.action !== "root" && input.action !== "compact" && !nodeID) {
