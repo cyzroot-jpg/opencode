@@ -1,22 +1,20 @@
 import type { SessionMessageInfo } from "@opencode/client"
 import type { MessageFilter } from "@opencode/plugin/tui/context"
-import { createStore, produce } from "solid-js/store"
+import { createSignal } from "solid-js"
 
-const [filters, setFilters] = createStore<Record<string, MessageFilter>>({})
+type Entry = { readonly id: string; readonly filter: MessageFilter }
+
+const [filters, setFilters] = createSignal<readonly Entry[]>([])
 
 export function registerMessageFilter(id: string, filter: MessageFilter) {
-  setFilters(id, filter)
+  setFilters((current) => [...current.filter((entry) => entry.id !== id), { id, filter }])
   return () => {
-    setFilters(
-      produce((draft) => {
-        delete draft[id]
-      }),
-    )
+    setFilters((current) => current.filter((entry) => entry.id !== id))
   }
 }
 
 export function applyMessageFilters(sessionID: string, messages: readonly SessionMessageInfo[]) {
   let result = messages
-  for (const filter of Object.values(filters)) result = filter({ sessionID, messages: result })
+  for (const entry of filters()) result = entry.filter({ sessionID, messages: result })
   return [...result]
 }
