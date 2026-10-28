@@ -425,6 +425,10 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
           Flag.optional,
         ),
         agent: Flag.String("agent").pipe(Flag.withDescription("Agent to use"), Flag.optional),
+        directory: Flag.String("directory").pipe(
+          Flag.withDescription("Directory to run in (defaults to the current directory)"),
+          Flag.optional,
+        ),
         format: Flag.Literals("format", ["default", "json"]).pipe(
           Flag.withDescription("Output format"),
           Flag.withDefault("default"),

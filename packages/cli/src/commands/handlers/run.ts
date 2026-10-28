@@ -21,6 +21,7 @@ export default Runtime.handler(Commands.commands.run, (input) =>
         fork: input.fork,
         model: Option.getOrUndefined(input.model),
         agent: Option.getOrUndefined(input.agent),
+        directory: Option.getOrUndefined(input.directory),
         format: input.format,
         file: [...input.file],
         title: Option.getOrUndefined(input.title),

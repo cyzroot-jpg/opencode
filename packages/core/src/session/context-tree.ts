@@ -4,6 +4,12 @@ import { Option, Schema } from "effect"
 
 export const Key = "contextTree"
 
+/** TreeCode experiments can run the same build in linear mode with TREECODE_CONTEXT_TREE=0. */
+export const enabled = () => process.env.TREECODE_CONTEXT_TREE !== "0"
+
+/** Headless experiment runs opt into automatic first-prompt initialization with TREECODE_CONTEXT_TREE=1. */
+export const autoInitialize = () => process.env.TREECODE_CONTEXT_TREE === "1"
+
 type Metadata = { readonly [key: string]: unknown }
 
 export const Node = Schema.Struct({

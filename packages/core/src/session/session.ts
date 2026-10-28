@@ -62,12 +62,29 @@ export const make = Effect.fn("Session.make")(function* () {
     messageID: SessionMessage.ID,
     text: string,
   ) {
+    if (!SessionContextTree.enabled()) return
     yield* contextTreeLocks
       .withLock(sessionID)(
         Effect.gen(function* () {
           const session = yield* get(sessionID)
           const tree = SessionContextTree.get(session.metadata)
-          if (!tree) return
+          if (!tree) {
+            if (!SessionContextTree.autoInitialize()) return
+            const messages = yield* store
+              .messages({ sessionID, type: "user", order: "asc" })
+              .pipe(Effect.catch(() => Effect.succeed([])))
+            const prompts = messages.flatMap((message) =>
+              message.type === "user" ? [{ id: message.id, text: message.text }] : [],
+            )
+            if (!prompts.some((prompt) => prompt.id === messageID)) prompts.push({ id: messageID, text })
+            const built = SessionContextTree.initialize(prompts)
+            if (!built) return
+            yield* bus.publish(SessionEvent.MetadataUpdated, {
+              sessionID,
+              metadata: SessionContextTree.set(session.metadata, built),
+            })
+            return
+          }
           const next = tree.pendingRoot
             ? SessionContextTree.addRoot(tree, messageID, text)
             : SessionContextTree.add(tree, messageID, text)
