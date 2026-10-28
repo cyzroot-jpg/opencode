@@ -4,6 +4,8 @@
 
 TreeCode 是一个面向长任务编程的分支式 AI 编程代理。它基于 OpenCode（MIT）构建，并把会话上下文从单线历史升级为**可切换、可压缩、可引用的上下文树**。
 
+上下文树已经内置在 TreeCode 中，不需要再安装 `opencode-context-tree` 插件；那个插件只用于给官方 OpenCode 补充能力。
+
 > TreeCode 是 OpenCode 的衍生项目，不是 OpenCode 官方产品，也不代表 OpenCode 团队。
 
 ## 为什么需要 TreeCode

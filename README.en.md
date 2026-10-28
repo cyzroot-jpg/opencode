@@ -4,6 +4,8 @@
 
 TreeCode is a branch-aware AI coding agent for long-running work. It is built on OpenCode (MIT) and turns a session's context from a single linear history into a **switchable, compactable, linkable context tree**.
 
+The context tree is built into TreeCode. You do not need to install the `opencode-context-tree` plugin; that plugin exists only to add the capability to official OpenCode.
+
 > TreeCode is a derivative of OpenCode. It is not an official OpenCode product and is not affiliated with the OpenCode team.
 
 ## Why TreeCode
