@@ -90,6 +90,7 @@ export const Plugin = {
   id: "opencode.tool.context-tree",
   effect: Effect.fn("ContextTreeTool.Plugin")(function* (ctx: Context) {
     if (!SessionContextTree.enabled()) return
+    const recent = new Map<string, { readonly signature: string; count: number }>()
     yield* ctx.tool.transform((editor) => {
       editor.add({
         name,
@@ -106,6 +107,18 @@ export const Plugin = {
               return yield* new ToolFailure({
                 message: "This session has no context tree. Context trees are disabled or not initialized.",
               })
+            }
+            const signature = `${context.sessionID}|${input.action}|${input.nodeID ?? ""}|${input.query ?? ""}`
+            const previous = recent.get(context.sessionID)
+            if (input.action === "list" && previous?.signature === signature) {
+              previous.count += 1
+              if (previous.count >= 2) {
+                return yield* new ToolFailure({
+                  message: "The tree was just listed and has not changed. Stop calling list; continue the task or use search/link.",
+                })
+              }
+            } else if (previous?.signature !== signature) {
+              recent.set(context.sessionID, { signature, count: 1 })
             }
             if (input.action === "list") return result(current, describe(current))
             if (input.action === "search") {
