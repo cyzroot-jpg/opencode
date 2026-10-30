@@ -263,6 +263,18 @@ export const entriesForRunner = Effect.fn("SessionHistory.entriesForRunner")(fun
     .pipe(Effect.orDie)
 })
 
+/** Linked branches keep their prompts and final text, but not tool traffic or reasoning. */
+const linkedEntry = <T extends { readonly seq: number; readonly message: SessionMessage.Info }>(
+  entry: T,
+): T | undefined => {
+  const message = entry.message
+  if (message.type === "user" || message.type === "compaction") return entry
+  if (message.type !== "assistant") return undefined
+  const content = message.content.filter((part) => part.type === "text")
+  if (content.length === 0) return undefined
+  return { ...entry, message: { ...message, content } } as T
+}
+
 const contextNode = (message: SessionMessage.Info) => {
   if (message.type !== "compaction" || message.status !== "completed") return
   const tree = message.metadata?.contextTree
@@ -275,7 +287,13 @@ export const treeEntries = <T extends { readonly seq: number; readonly message: 
   tree: SessionContextTree.Info,
   entries: readonly T[],
 ) => {
-  const allowed = SessionContextTree.filter(tree, entries, { includeCompaction: true })
+  const allowed = SessionContextTree.filter(
+    tree,
+    entries,
+    process.env.TREECODE_CONTEXT_LINK_MODE === "full"
+      ? { includeCompaction: true }
+      : { includeCompaction: true, linkEntry: linkedEntry },
+  )
   const activePath = SessionContextTree.path(tree, tree.active)
   let selected: T | undefined
   for (const nodeID of activePath.toReversed()) {

@@ -248,7 +248,11 @@ export const visible = <T extends { readonly id: string; readonly type: string }
 export const filter = <T extends Entry>(
   tree: Info,
   entries: readonly T[],
-  options?: { readonly includeCompaction?: boolean },
+  options?: {
+    readonly includeCompaction?: boolean
+    /** Rewrite or drop entries that come from a linked branch. */
+    readonly linkEntry?: (entry: T, nodeID: string) => T | undefined
+  },
 ) => {
   if (Object.keys(tree.nodes).length === 0) return []
   const users = entries.filter((entry) => entry.message.type === "user").map((entry) => entry.message.id)
@@ -266,14 +270,19 @@ export const filter = <T extends Entry>(
       if (!linked.includes(node)) linked.push(node)
     }
   }
-  const allowed = [...activePath, ...linked]
+  const allowed = [
+    ...activePath.map((id) => ({ id, linked: false })),
+    ...linked.map((id) => ({ id, linked: true })),
+  ]
   const starts = users.map((id) => seq.get(id)!).sort((left, right) => left - right)
   const first = starts[0] ?? 0
-  const ranges = allowed.map((id) => {
+  const ranges = allowed.map(({ id, linked }) => {
     const start = seq.get(id)!
     return {
+      id,
       start: id === tree.root && start === first ? 0 : start,
       end: starts.find((value) => value > start) ?? Number.POSITIVE_INFINITY,
+      linked,
     }
   })
   const selected: T[] = []
@@ -283,7 +292,8 @@ export const filter = <T extends Entry>(
       if (entry.seq < range.start || entry.seq >= range.end) continue
       if ((!options?.includeCompaction && entry.message.type === "compaction") || seen.has(entry.seq)) continue
       seen.add(entry.seq)
-      selected.push(entry)
+      const value = range.linked && options?.linkEntry ? options.linkEntry(entry, range.id) : entry
+      if (value) selected.push(value)
     }
   }
   return selected

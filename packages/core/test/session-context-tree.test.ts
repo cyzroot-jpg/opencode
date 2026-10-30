@@ -167,6 +167,23 @@ describe("SessionContextTree", () => {
     ])
   })
 
+  test("lets linked entries be compressed without changing the active path", () => {
+    const tree = {
+      version: 1 as const,
+      root: "u1",
+      active: "u2",
+      nodes: {
+        u1: { label: "first" },
+        u2: { parent: "u1", label: "second", links: ["u3"] },
+        u3: { parent: "u1", label: "third" },
+      },
+    }
+    const selected = SessionContextTree.filter(tree, entries, {
+      linkEntry: (entry) => (entry.message.type === "assistant" ? undefined : entry),
+    })
+    expect(selected.map((entry) => entry.message.id)).toEqual(["u1", "a1", "u2", "a2", "u3"])
+  })
+
   test("appends a linked sibling branch", () => {
     const tree = {
       version: 1 as const,
